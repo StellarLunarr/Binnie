@@ -7,7 +7,7 @@ import static binnie.core.craftgui.minecraft.ContainerCraftGUI.SLOT_REG;
 import static binnie.core.craftgui.minecraft.ContainerCraftGUI.SLOT_TYPE;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
@@ -20,10 +20,13 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.IIcon;
 
+import org.lwjgl.input.Mouse;
+
 import binnie.core.craftgui.CraftGUI;
 import binnie.core.craftgui.IWidget;
 import binnie.core.craftgui.Tooltip;
 import binnie.core.craftgui.events.EventMouse;
+import binnie.core.craftgui.events.EventWidget;
 import binnie.core.craftgui.geometry.IArea;
 import binnie.core.craftgui.geometry.IPoint;
 import binnie.core.craftgui.minecraft.CustomSlot;
@@ -36,15 +39,17 @@ import binnie.core.machines.inventory.MachineSide;
 import binnie.core.machines.inventory.SlotValidator;
 import binnie.core.network.packet.MessageCraftGUI;
 import binnie.core.util.I18N;
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
+import it.unimi.dsi.fastutil.ints.IntSet;
 
 public class ControlSlot extends ControlSlotBase {
 
-    public static Map<EnumHighlighting, List<Integer>> highlighting = new HashMap<>();
+    public static Map<EnumHighlighting, IntSet> highlighting = new EnumMap<>(EnumHighlighting.class);
     public static boolean shiftClickActive = false;
 
     static {
         for (EnumHighlighting h : EnumHighlighting.values()) {
-            ControlSlot.highlighting.put(h, new ArrayList<>());
+            ControlSlot.highlighting.put(h, new IntOpenHashSet());
         }
     }
 
@@ -59,22 +64,17 @@ public class ControlSlot extends ControlSlotBase {
 
             @Override
             public void onEvent(EventMouse.Down event) {
-                if (slot == null) {
-                    return;
-                }
+                clickSlot(event.getButton());
+            }
+        });
+        addSelfEventHandler(new EventWidget.StartMouseOver.Handler() {
 
-                PlayerControllerMP playerController = ((Window) getSuperParent()).getGui()
-                        .getMinecraft().playerController;
-                int windowId = ((Window) getSuperParent()).getContainer().windowId;
-                int slotNumber = slot.slotNumber;
-                int button = event.getButton();
-                Window.get(getWidget()).getGui();
-                playerController.windowClick(
-                        windowId,
-                        slotNumber,
-                        button,
-                        GuiScreen.isShiftKeyDown() ? 1 : 0,
-                        ((Window) getSuperParent()).getGui().getMinecraft().thePlayer);
+            @Override
+            public void onEvent(EventWidget.StartMouseOver event) {
+                if (GuiScreen.isShiftKeyDown() && Mouse.isButtonDown(0)
+                        && Window.get(ControlSlot.this).getDraggedWidget() instanceof ControlSlot) {
+                    clickSlot(0);
+                }
             }
         });
     }
@@ -88,6 +88,19 @@ public class ControlSlot extends ControlSlotBase {
     public ControlSlot setSlotTexture(CraftGUITexture texture) {
         slotTexture = texture == null ? CraftGUITexture.Slot : texture;
         return this;
+    }
+
+    private void clickSlot(int button) {
+        if (slot == null) return;
+
+        Window window = (Window) getSuperParent();
+        PlayerControllerMP playerController = window.getGui().getMinecraft().playerController;
+        playerController.windowClick(
+                window.getContainer().windowId,
+                slot.slotNumber,
+                button,
+                GuiScreen.isShiftKeyDown() ? 1 : 0,
+                window.getGui().getMinecraft().thePlayer);
     }
 
     @Override
@@ -106,7 +119,7 @@ public class ControlSlot extends ControlSlotBase {
         }
 
         boolean highlighted = false;
-        for (Map.Entry<EnumHighlighting, List<Integer>> highlight : ControlSlot.highlighting.entrySet()) {
+        for (Map.Entry<EnumHighlighting, IntSet> highlight : ControlSlot.highlighting.entrySet()) {
             if (highlight.getKey() == EnumHighlighting.SHIFT_CLICK && !ControlSlot.shiftClickActive) {
                 continue;
             }
@@ -135,7 +148,7 @@ public class ControlSlot extends ControlSlotBase {
         }
 
         boolean highlighted = false;
-        for (Map.Entry<EnumHighlighting, List<Integer>> highlight : ControlSlot.highlighting.entrySet()) {
+        for (Map.Entry<EnumHighlighting, IntSet> highlight : ControlSlot.highlighting.entrySet()) {
             if (highlight.getKey() == EnumHighlighting.SHIFT_CLICK && !ControlSlot.shiftClickActive) {
                 continue;
             }
